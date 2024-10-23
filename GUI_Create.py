@@ -9,6 +9,7 @@ global cursor_enabled
 global vertical_line
 vertical_line = None
 cursor_enabled = False
+zoom_scale = 1.0
 
 # Hàm để vẽ các tín hiệu được chọn
 def plot_signals():
@@ -18,7 +19,6 @@ def plot_signals():
     ax.set_xlim(0, 1 / zoom_scale)  # Cập nhật giới hạn trục x
     ax.set_ylim(-1.5, 1.5)
     t = np.linspace(0, 1, 100)  # Thời gian từ 0 đến 1 giây
-    # ax.set_xlim(1, 2 / 1.5)
     # Kiểm tra từng checkbox và vẽ tín hiệu tương ứng
     if signal_vars[0].get() == 1:  # Sine
         y = np.sin(2 * np.pi * 5 * t)
@@ -98,9 +98,6 @@ def show_context_menu(event, signal_index):
     context_menu.add_command(label="Delete Signal", command=lambda: delete_signal(signal_index))
     context_menu.post(event.x_root, event.y_root)  # Hiển thị menu tại vị trí chuột
 
-# Biến toàn cục để quản lý tỷ lệ zoom
-zoom_scale = 1.0  # Tỷ lệ zoom ban đầu
-
 # Hàm để thực hiện chức năng "Zoom In"
 def zoom_in():
     global zoom_scale
@@ -111,6 +108,11 @@ def zoom_in():
 def zoom_out():
     global zoom_scale
     zoom_scale /= 1.2
+    plot_signals()   # Giảm tỷ lệ zoom
+
+def fitting():
+    global zoom_scale
+    zoom_scale = 1
     plot_signals()   # Giảm tỷ lệ zoom
 
 # Hàm để bật tắt chức năng cursor
@@ -130,11 +132,13 @@ def set_cursor():
         canvas.mpl_disconnect('motion_notify_event')
 
 # Hàm xử lý sự kiện di chuyển chuột
+# Hàm xử lý sự kiện di chuyển chuột
+# Hàm xử lý sự kiện di chuyển chuột
 def on_mouse_move(event):
     global vertical_line  # Sử dụng biến toàn cục
     if cursor_enabled and event.inaxes:  # Nếu cursor đang bật và chuột nằm trong trục
         x = event.xdata
-        y = event.ydata
+        print(f"Cursor Position: x={x:.2f}")  # In ra vị trí chuột
 
         # Chỉ vẽ đường thẳng đứng nếu nhấn chuột trái
         if event.button == 1:  # 1 là nút chuột trái
@@ -145,12 +149,28 @@ def on_mouse_move(event):
             # Tạo đường thẳng mới
             vertical_line = ax.axvline(x=x, color='red', linestyle='--', label='Cursor Line')
             ax.legend()  # Hiển thị chú thích nếu cần
+            
+            # Tìm giá trị của các tín hiệu tại x
+            for i, signal_var in enumerate(signal_vars):
+                if signal_var.get() == 1:  # Kiểm tra xem tín hiệu có được chọn hay không
+                    # Tính toán giá trị y tại x
+                    if i == 0:  # Sine
+                        y_value = np.sin(2 * np.pi * 5 * x)
+                        print(f"Sine value at x={x:.2f}: {y_value:.2f}")
+                    elif i == 1:  # Cosine
+                        y_value = np.cos(2 * np.pi * 5 * x)
+                        print(f"Cosine value at x={x:.2f}: {y_value:.2f}")
+                    elif i == 2:  # Square
+                        y_value = np.sign(np.sin(2 * np.pi * 5 * x))
+                        print(f"Square value at x={x:.2f}: {y_value:.2f}")
+
             canvas.draw()  # Vẽ lại biểu đồ
 
     elif vertical_line is not None:  # Nếu không còn trong trục, xóa đường thẳng
         vertical_line.remove()
         vertical_line = None
         canvas.draw()  # Vẽ lại biểu đồ
+
 
 # Khởi tạo cửa sổ chính
 root = tk.Tk()
@@ -171,7 +191,7 @@ file_menu.add_command(label="Exit", command=root.quit)  # Tạo mục "Exit"
 menubar.add_cascade(label="File", menu=file_menu)
 
 tool_menu = tk.Menu(menubar, tearoff=0)
-tool_menu.add_command(label="Fit", command=open_file)
+tool_menu.add_command(label="Fit", command=fitting)
 tool_menu.add_command(label="Zoom In", command=zoom_in)
 tool_menu.add_command(label="Zoom Out", command=zoom_out)
 tool_menu.add_separator()   
