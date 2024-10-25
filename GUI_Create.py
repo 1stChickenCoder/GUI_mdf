@@ -267,3 +267,223 @@ canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)  # Mở rộng theo chi�
 
 # Chạy ứng dụng
 root.mainloop()
+
+
+#**************************************************************************************
+import tkinter as tk
+from tkinter import Checkbutton, IntVar, filedialog
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import numpy as np
+from PIL import Image, ImageTk
+
+global cursor_enabled
+global vertical_line
+vertical_line = None
+cursor_enabled = False
+zoom_scale = 1.0
+
+# Hàm để vẽ các tín hiệu được chọn
+def plot_signals():
+    global t
+    global ax
+    ax.clear()  # Xóa biểu đồ cũ
+    ax.set_xlim(0, 1 / zoom_scale)  # Cập nhật giới hạn trục x
+    ax.set_ylim(-1.5, 1.5)
+    t = np.linspace(0, 1, 100)  # Thời gian từ 0 đến 1 giây
+    # Kiểm tra từng checkbox và vẽ tín hiệu tương ứng
+    if signal_vars[0].get() == 1:  # Sine
+        y = np.sin(2 * np.pi * 5 * t)
+        ax.plot(t, y, label='Sine')
+    
+    if signal_vars[1].get() == 1:  # Cosine
+        y = np.cos(2 * np.pi * 5 * t)
+        ax.plot(t, y, label='Cosine')
+    
+    if signal_vars[2].get() == 1:  # Square
+        y = np.sign(np.sin(2 * np.pi * 5 * t))
+        ax.plot(t, y, label='Square')
+
+    ax.set_title("Selected Signals")
+    ax.legend()  # Hiển thị chú thích
+    canvas.draw()
+
+def open_file():
+    global dir_temp  # Sử dụng biến toàn cục để lưu đường dẫn file
+
+    # Hiển thị hộp thoại mở file
+    file_path = filedialog.askopenfilename(
+        title="Open a file", 
+        filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
+    )
+    
+    if file_path:  # Nếu người dùng chọn file
+        dir_temp = file_path  # Lưu đường dẫn file vào biến dir_temp
+        print(f"Đường dẫn file đã chọn: {dir_temp}")
+
+
+def on_save():
+    # Hiển thị hộp thoại để chọn đường dẫn lưu file
+    file_path = filedialog.asksaveasfilename(
+        title="Save Image",
+        defaultextension=".png",
+        filetypes=[("PNG files", "*.png"), ("JPEG files", "*.jpg"), ("All files", "*.*")]
+    )
+    
+    if file_path:  # Nếu người dùng chọn đường dẫn
+        fig.savefig(file_path)  # Lưu biểu đồ vào đường dẫn chỉ định
+        print(f"Biểu đồ đã được lưu tại: {file_path}")
+
+def resize_image(image_path, size):
+    image = Image.open(image_path)
+    image = image.resize(size)  # Thay đổi kích thước
+    return ImageTk.PhotoImage(image)
+
+# Hàm để thực hiện chức năng "Zoom In"
+def zoom_in():
+    global zoom_scale
+    zoom_scale *= 1.2
+    plot_signals()   # Tăng tỷ lệ zoom
+
+# Hàm để thực hiện chức năng "Zoom Out"
+def zoom_out():
+    global zoom_scale
+    zoom_scale /= 1.2
+    plot_signals()   # Giảm tỷ lệ zoom
+
+def fitting():
+    global zoom_scale
+    zoom_scale = 1
+    plot_signals()   # Đặt lại tỷ lệ zoom
+
+# Hàm để bật tắt chức năng cursor
+def set_cursor():
+    global cursor_enabled
+    cursor_enabled = not cursor_enabled  # Chuyển đổi trạng thái cursor
+
+    if cursor_enabled:
+        # Thay đổi hình dạng con trỏ
+        root.config(cursor="crosshair")
+        # Đăng ký sự kiện chuột cho canvas
+        canvas.mpl_connect('motion_notify_event', on_mouse_move)
+    else:
+        # Đặt lại con trỏ
+        root.config(cursor="")
+        # Ngắt kết nối sự kiện chuột
+        canvas.mpl_disconnect('motion_notify_event')
+
+# Hàm xử lý sự kiện di chuyển chuột
+def on_mouse_move(event):
+    global vertical_line  # Sử dụng biến toàn cục
+    if cursor_enabled and event.inaxes:  # Nếu cursor đang bật và chuột nằm trong trục
+        x = event.xdata
+        print(f"Cursor Position: x={x:.2f}")  # In ra vị trí chuột
+
+        # Chỉ vẽ đường thẳng đứng nếu nhấn chuột trái
+        if event.button == 1:  # 1 là nút chuột trái
+            # Xóa đường thẳng trước đó nếu nó đã tồn tại
+            if vertical_line is not None:
+                vertical_line.remove()
+
+            # Tạo đường thẳng mới
+            vertical_line = ax.axvline(x=x, color='red', linestyle='--', label='Cursor Line')
+            ax.legend()  # Hiển thị chú thích nếu cần
+
+            # Tìm giá trị của các tín hiệu tại x
+            for i, signal_var in enumerate(signal_vars):
+                if signal_var.get() == 1:  # Kiểm tra xem tín hiệu có được chọn hay không
+                    if i == 0:  # Sine
+                        y_value = np.sin(2 * np.pi * 5 * x)
+                        print(f"Sine value at x={x:.2f}: {y_value:.2f}")
+                    elif i == 1:  # Cosine
+                        y_value = np.cos(2 * np.pi * 5 * x)
+                        print(f"Cosine value at x={x:.2f}: {y_value:.2f}")
+                    elif i == 2:  # Square
+                        y_value = np.sign(np.sin(2 * np.pi * 5 * x))
+                        print(f"Square value at x={x:.2f}: {y_value:.2f}")
+
+            canvas.draw()  # Vẽ lại biểu đồ
+
+    elif vertical_line is not None:  # Nếu không còn trong trục, xóa đường thẳng
+        vertical_line.remove()
+        vertical_line = None
+        canvas.draw()  # Vẽ lại biểu đồ
+
+# Hàm tạo các frame và giao diện người dùng
+def create_frames():
+    global canvas, ax, fig, signal_vars, root, exit_image, open_image, save_image
+    root = tk.Tk()
+    root.title("Signal Plotter")
+    root.geometry("800x400")
+
+    menubar = tk.Menu(root)
+    file_menu = tk.Menu(menubar, tearoff=0)
+    file_menu.add_command(label="Open", command=open_file)
+    file_menu.add_command(label="Save image", command=on_save)
+    file_menu.add_separator()
+    file_menu.add_command(label="Exit", command=root.quit)
+    menubar.add_cascade(label="File", menu=file_menu)
+
+    tool_menu = tk.Menu(menubar, tearoff=0)
+    tool_menu.add_command(label="Fit", command=fitting)
+    tool_menu.add_command(label="Zoom In", command=zoom_in)
+    tool_menu.add_command(label="Zoom Out", command=zoom_out)
+    tool_menu.add_separator()
+    tool_menu.add_command(label="Cursor", command=set_cursor)
+    menubar.add_cascade(label="Tools", menu=tool_menu)
+
+    help_menu = tk.Menu(menubar, tearoff=0)
+    help_menu.add_command(label="About", command=lambda: print("Signal Plotter v1.0"))
+    menubar.add_cascade(label="Help", menu=help_menu)
+    root.config(menu=menubar)
+
+    top_padding = tk.Frame(root, height=10)
+    top_padding.pack()
+
+    # Load images for buttons
+    open_image = resize_image("folder_open.png", (20, 20))
+    save_image = resize_image("file_save.png", (20, 20))
+    exit_image = resize_image("exit.png", (20, 20))
+
+    open_button = tk.Button(top_padding, image=open_image, command=open_file)
+    open_button.pack(side=tk.LEFT, pady=(5, 0), anchor='w')
+
+    save_button = tk.Button(top_padding, image=save_image, command=on_save)
+    save_button.pack(side=tk.LEFT, pady=(5, 0), anchor='w')
+
+    exit_button = tk.Button(top_padding, image=exit_image, command=root.quit)
+    exit_button.pack(side=tk.LEFT, pady=(5, 0), anchor='w')
+
+    paned_window = tk.PanedWindow(root, orient=tk.HORIZONTAL)
+    paned_window.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
+
+    left_frame = tk.Frame(paned_window, bg='lightgray')
+    paned_window.add(left_frame)
+    paned_window.paneconfigure(left_frame, minsize=80)
+
+    signal_vars = [IntVar(), IntVar(), IntVar()]  # Danh sách lưu trạng thái checkbox
+    checkboxes = []
+    signals = ["Sine", "Cosine", "Square"]
+    for i, signal in enumerate(signals):
+        cb = Checkbutton(left_frame, text=signal, variable=signal_vars[i], command=plot_signals)
+        cb.pack(anchor=tk.W)
+        checkboxes.append(cb)
+
+    right_frame = tk.Frame(paned_window, bg='white')
+    paned_window.add(right_frame)
+
+    fig = Figure
+    fig = Figure(figsize=(5, 4))
+    ax = fig.add_subplot(111)
+    canvas = FigureCanvasTkAgg(fig, master=right_frame)
+    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+# Hàm chính để chạy ứng dụng
+def main():
+    create_frames()
+    plot_signals()  # Vẽ các tín hiệu ban đầu (nếu cần)
+    root.mainloop()  # Bắt đầu vòng lặp sự kiện của Tkinter
+
+if __name__ == "__main__":
+    main()
+
